@@ -31,6 +31,12 @@ set the `AGENTIC_WORKFLOW_GATE_PATTERNS` environment variable to override with y
 actual ship commands (extended-regex alternation). See the comment header in the script itself for
 the exact matching rules and why substring matching is deliberate.
 
+The hook **fails closed**: if `jq` isn't installed, if it can't parse its input, or if your
+`AGENTIC_WORKFLOW_GATE_PATTERNS` doesn't compile as a regex, it asks for confirmation rather than
+silently letting the command through. In practice this means a missing `jq` shows up immediately as
+every command needing confirmation, not as the gate quietly doing nothing — install `jq` and it goes
+back to only flagging real matches.
+
 Verify it after installing: have the agent attempt a matching command (in a safe, throwaway context)
 and confirm you get a permission prompt with the gate's reason string, even if your permission mode
 is otherwise set to auto-accept.

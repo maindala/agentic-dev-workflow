@@ -22,8 +22,11 @@ found we needed that a generic workflow description doesn't give you on its own:
    is a Claude Code `PreToolUse` hook: it inspects every shell command the agent is about to run, and
    if the command would merge a pull request or run a deploy, it forces a human confirmation prompt —
    **even when the agent is running in an auto-accept permission mode.** A workflow gate that's only
-   prompt text is a gate the agent can talk itself past under enough pressure or ambiguity. A gate
-   backed by the harness itself cannot be.
+   prompt text is a gate the agent can talk itself past under enough pressure or ambiguity; a gate
+   backed by the harness resists that specific failure mode. It's not unconditional — the hook can
+   still be disabled or edited by whoever controls the environment it runs in, and it depends on `jq`
+   being installed — but it **fails closed**: if it can't parse its input, can't find `jq`, or its
+   configured pattern doesn't compile, it asks rather than silently allowing.
 2. **Persistent memory in the loop**, so an agent starting a new session recalls prior decisions
    instead of re-deriving or re-litigating them. See [`memory/README.md`](memory/README.md).
 3. **A living status ledger** — a single place that records what's actually shipped, by whom, and
