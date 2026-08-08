@@ -45,6 +45,16 @@ you can trace a shipped feature from its architecture through its acceptance cri
 coverage in one direction. See [`conventions/traceability.md`](conventions/traceability.md) and the
 matching templates in [`templates/`](templates/).
 
+## Worked example
+
+[`examples/webhook-delivery-log/`](examples/webhook-delivery-log/) is a complete filled-in triad —
+design, stories, and test cases for one feature. It's there mainly for its **Build Notes** section,
+which records a cursor-pagination design that turned out to be subtly wrong: the endpoint returned
+correct data, errored on nothing, and quietly re-returned the same rows on every poll forever.
+Recording that kind of finding is the part of this method that pays for the rest of it.
+
+The bug is real; the feature it's set in is invented.
+
 ## Quick start
 
 1. Copy `templates/design-artifact.md`, `templates/user-stories.md`, and `templates/qa-test-cases.md`
