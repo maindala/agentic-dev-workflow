@@ -1,5 +1,7 @@
 # Agentic Dev Workflow
 
+[![CI](https://github.com/maindala/agentic-dev-workflow/actions/workflows/ci.yml/badge.svg)](https://github.com/maindala/agentic-dev-workflow/actions/workflows/ci.yml)
+
 A two-gate development workflow for building software with an AI coding agent (Claude Code, or
 similar), plus the artifact templates, traceability conventions, and enforcement tooling that make
 it stick.
@@ -48,6 +50,57 @@ you can trace a shipped feature from its architecture through its acceptance cri
 coverage in one direction. See [`conventions/traceability.md`](conventions/traceability.md) and the
 matching templates in [`templates/`](templates/).
 
+## Enforcing the gates in CI
+
+`ship-gate.sh` enforces Gate 2 inside an agent session. It has nothing to say about a PR that
+never went through an agent session at all, or a merge from a machine where the hook was never
+installed — that requires repository-level enforcement, not a local script:
+
+- **[`.github/actions/gate-check`](.github/actions/gate-check/)** — a reusable composite Action
+  that checks a pull request's traceability triad is present (design + user-stories + QA files
+  sharing one basename, per [`conventions/traceability.md`](conventions/traceability.md)) and that
+  the QA file references at least one story ID the stories file declares. It's wired into this
+  repo's own [`.github/workflows/gate-check.yml`](.github/workflows/gate-check.yml), which doubles
+  as reference wiring for adopting it elsewhere — either copy that workflow or reference the action
+  directly as `maindala/agentic-dev-workflow/.github/actions/gate-check@<pinned-sha-or-tag>`.
+- **[`templates/CODEOWNERS.example`](templates/CODEOWNERS.example)** — a starting-point
+  `CODEOWNERS` file routing review of the gate/CI files themselves and of design artifacts to
+  named owners.
+- **[`conventions/branch-protection.md`](conventions/branch-protection.md)** — the manual GitHub
+  repository settings (required status checks, required CODEOWNERS review, no admin bypass, and a
+  note on why merge-commit identity matters) that make the gate-check Action and CODEOWNERS file
+  actually binding rather than advisory.
+
+### What CI enforcement does not cover
+
+Read this section against the actual code, not just the description above — it's here so nobody
+adopts this expecting more than it delivers:
+
+- **No immutable audit storage.** The gate-check Action's output lives in GitHub Actions run logs,
+  which are ordinary logs — retained per your plan's normal retention window, editable/deletable by
+  anyone with admin on the repo, and not a tamper-evident or append-only record of any kind.
+- **No identity integration.** Enforcement is scoped to GitHub accounts and GitHub's own
+  permission model (CODEOWNERS, branch protection, required reviewers). There is no SSO, SAML, or
+  external identity-provider binding, and no proof that the GitHub account approving a PR is who it
+  claims to be beyond GitHub's own authentication.
+- **No organization-wide reporting.** Each repo's gate-check run and branch-protection rule are
+  local to that repo. There is no dashboard, aggregation, or cross-repo compliance view — if you
+  need one, you build it against the GitHub API yourself.
+- **`ship-gate.sh` is still just a local hook.** It can be disabled, edited, or skipped by whoever
+  controls the environment it runs in (uninstall the hook, edit `settings.json`, or run the command
+  outside an agent session entirely). CI enforcement narrows that gap for the merge/deploy path
+  specifically — a PR without a complete traceability triad can be made to fail its required check
+  regardless of what any local hook did or didn't catch — but it does not make the hook itself
+  tamper-proof, and it enforces *traceability*, not the ship-gate's actual subject (that a human
+  approved the merge/deploy).
+- **The gate-check Action checks structure, not content.** It confirms three files exist and
+  cross-reference by ID. It has no opinion on whether the acceptance criteria are any good, whether
+  the QA cases were actually executed, or whether the design itself makes sense.
+- **Branch protection has an admin escape hatch by default.** GitHub's "allow bypass" and
+  "administrators can bypass" settings are opt-out, not opt-in absent — see
+  `conventions/branch-protection.md` for the specific settings to disable, and note that disabling
+  them is a manual step this repo cannot perform for you.
+
 ## Worked example
 
 [`examples/webhook-delivery-log/`](examples/webhook-delivery-log/) is a complete filled-in triad —
@@ -67,6 +120,9 @@ The bug is real; the feature it's set in is invented.
 3. Optionally wire up the memory convention in [`memory/README.md`](memory/README.md). It works with
    plain files; an external memory tool is an accelerator, not a requirement.
 4. Follow the cycle in `WORKFLOW.md`.
+5. Optionally, wire up [`.github/actions/gate-check`](.github/actions/gate-check/) and
+   [`conventions/branch-protection.md`](conventions/branch-protection.md) so the traceability gate
+   holds at the repository level, not only in your own local hook.
 
 ## What this is not
 

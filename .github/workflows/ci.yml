@@ -1,0 +1,150 @@
+# CI for a non-npm repo: this project publishes a development method (hooks, templates,
+# conventions), not a package, so there's no build/type-check/test-matrix in the usual sense.
+# What actually needs proving is narrower and more important: do the hooks pass static analysis,
+# and does ship-gate.sh — this repo's whole differentiator — genuinely do what the README claims
+# under the exact conditions it claims to handle (malformed input, wrapped commands, missing jq)?
+#
+# ubuntu-latest only, by design (see design-artifacts/oss-adoption-enterprise-readiness.md §8):
+# larger runners are billed even on public repos, and this repo has no workload that needs one.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Static analysis: every hook must pass shellcheck clean ──
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: shellcheck all hooks
+        run: shellcheck hooks/*.sh
+
+  # ── Structural check: the traceability triad templates + convention doc exist ──
+  # Cheap, but real: this is what a future template rename or accidental deletion would break
+  # silently for every downstream adopter.
+  structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: templates and conventions doc are present
+        run: |
+          set -euo pipefail
+          for f in \
+            templates/design-artifact.md \
+            templates/user-stories.md \
+            templates/qa-test-cases.md \
+            conventions/traceability.md \
+            hooks/ship-gate.sh \
+            hooks/README.md \
+            WORKFLOW.md \
+            SECURITY.md \
+            LICENSE
+          do
+            if [ ! -f "$f" ]; then
+              echo "::error::expected file missing: $f"
+              exit 1
+            fi
+          done
+          echo "all expected files present"
+
+  # ── Functional test of ship-gate.sh — the actual point of this workflow ──
+  # ship-gate.sh is a Claude Code PreToolUse hook: it's invoked with a JSON payload on stdin and
+  # must emit a permissionDecision of "ask" for ship-shaped commands, and stay silent (no opinion)
+  # for everything else. This asserts the real documented behavior, not just "the script parses".
+  ship-gate-functional:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: jq is available (sanity check for the rest of this job)
+        run: jq --version
+
+      - name: gh pr merge is gated
+        run: |
+          set -euo pipefail
+          out=$(echo '{"tool_input":{"command":"gh pr merge 5 --squash"}}' | bash hooks/ship-gate.sh)
+          decision=$(echo "$out" | jq -r '.hookSpecificOutput.permissionDecision')
+          if [ "$decision" != "ask" ]; then
+            echo "::error::expected permissionDecision=ask for 'gh pr merge 5 --squash', got: $out"
+            exit 1
+          fi
+
+      - name: scripts/deploy/ is gated
+        run: |
+          set -euo pipefail
+          out=$(echo '{"tool_input":{"command":"scripts/deploy/web.sh"}}' | bash hooks/ship-gate.sh)
+          decision=$(echo "$out" | jq -r '.hookSpecificOutput.permissionDecision')
+          if [ "$decision" != "ask" ]; then
+            echo "::error::expected permissionDecision=ask for 'scripts/deploy/web.sh', got: $out"
+            exit 1
+          fi
+
+      - name: a wrapped/prefixed merge command is still gated (substring match)
+        run: |
+          set -euo pipefail
+          # The $(...) in the payload below is literal test data (a wrapped command string), not
+          # meant to expand.
+          # shellcheck disable=SC2016
+          out=$(echo '{"tool_input":{"command":"GH_TOKEN=$(gh auth token) gh pr merge 5 --merge"}}' | bash hooks/ship-gate.sh)
+          decision=$(echo "$out" | jq -r '.hookSpecificOutput.permissionDecision')
+          if [ "$decision" != "ask" ]; then
+            echo "::error::expected permissionDecision=ask for a wrapped gh pr merge, got: $out"
+            exit 1
+          fi
+
+      - name: an unrelated command passes through with no opinion
+        run: |
+          set -euo pipefail
+          out=$(echo '{"tool_input":{"command":"ls -la"}}' | bash hooks/ship-gate.sh)
+          if [ -n "$out" ]; then
+            echo "::error::expected no output (pass-through) for 'ls -la', got: $out"
+            exit 1
+          fi
+
+      - name: missing jq fails closed (ask), not open
+        # Build a minimal PATH containing only what the hook itself needs to run (bash, grep,
+        # cat/printf/coreutils) with jq deliberately excluded, to prove the hook's own
+        # documented "no jq on PATH -> ask" fallback branch, not just its jq-present path.
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/no-jq-path
+          for bin in bash grep cat printf sh dirname basename env sed; do
+            src=$(command -v "$bin" || true)
+            [ -n "$src" ] && ln -sf "$src" "/tmp/no-jq-path/$bin"
+          done
+          out=$(echo '{"tool_input":{"command":"ls -la"}}' | PATH=/tmp/no-jq-path bash hooks/ship-gate.sh)
+          echo "$out" | grep -q '"permissionDecision":"ask"' || {
+            echo "::error::expected a raw ask JSON blob when jq is absent, got: $out"
+            exit 1
+          }
+          echo "$out" | grep -qi 'jq is required' || {
+            echo "::error::expected the missing-jq reason string, got: $out"
+            exit 1
+          }
+
+      - name: malformed stdin fails closed (ask)
+        run: |
+          set -euo pipefail
+          out=$(echo 'not json' | bash hooks/ship-gate.sh)
+          decision=$(echo "$out" | jq -r '.hookSpecificOutput.permissionDecision')
+          if [ "$decision" != "ask" ]; then
+            echo "::error::expected permissionDecision=ask for malformed stdin, got: $out"
+            exit 1
+          fi
+
+      - name: an invalid custom pattern fails closed (ask)
+        run: |
+          set -euo pipefail
+          out=$(echo '{"tool_input":{"command":"ls"}}' | AGENTIC_WORKFLOW_GATE_PATTERNS='[' bash hooks/ship-gate.sh)
+          decision=$(echo "$out" | jq -r '.hookSpecificOutput.permissionDecision')
+          if [ "$decision" != "ask" ]; then
+            echo "::error::expected permissionDecision=ask for an invalid regex pattern, got: $out"
+            exit 1
+          fi

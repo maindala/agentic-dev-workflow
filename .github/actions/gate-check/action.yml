@@ -1,0 +1,31 @@
+name: 'Traceability Gate Check'
+description: >-
+  Verifies a pull request's traceability triad (design artifact, user stories, and QA test
+  cases sharing one basename, per conventions/traceability.md) is present and cross-referenced.
+  Structural only — it does not review content quality or acceptance-criteria completeness.
+  See the README's "What CI enforcement does not cover" section for the full boundary.
+author: 'mAIndala'
+branding:
+  icon: 'check-square'
+  color: 'purple'
+
+inputs:
+  base-sha:
+    description: 'Base commit SHA to diff from. Defaults to the pull_request event base SHA.'
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  head-sha:
+    description: 'Head commit SHA to diff to. Defaults to the pull_request event head SHA.'
+    required: false
+    default: ${{ github.event.pull_request.head.sha }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run the triad check
+      shell: bash
+      run: |
+        set -euo pipefail
+        # A shallow/partial checkout may not have both endpoints of the diff locally yet.
+        git fetch --no-tags --depth=1 origin "${{ inputs.base-sha }}" "${{ inputs.head-sha }}" 2>/dev/null || true
+        bash "${{ github.action_path }}/check.sh" "${{ inputs.base-sha }}" "${{ inputs.head-sha }}"

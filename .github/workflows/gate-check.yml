@@ -1,0 +1,30 @@
+# Runs the traceability gate-check Action (.github/actions/gate-check) against every PR to this
+# repo. This is also the reference wiring for adopters: copy this workflow (and the action
+# directory, or reference it via `maindala/agentic-dev-workflow/.github/actions/gate-check@<ref>`)
+# into a repo that follows the design/story-artifacts/qa-test-cases convention documented in
+# conventions/traceability.md.
+#
+# See the README's enforcement-boundary section for what this does and does not guarantee — in
+# short: presence and ID cross-reference only, not content review, and it only fires on PRs, so it
+# is not a substitute for branch protection (see conventions/branch-protection.md).
+name: Gate Check
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  traceability-triad:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/gate-check
+        with:
+          base-sha: ${{ github.event.pull_request.base.sha }}
+          head-sha: ${{ github.event.pull_request.head.sha }}

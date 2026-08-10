@@ -1,0 +1,24 @@
+# Template CODEOWNERS for a repo adopting this workflow.
+#
+# Copy this file to `.github/CODEOWNERS` (or `CODEOWNERS` at repo root — GitHub accepts either)
+# in your own repo, then replace the placeholder handles below with real GitHub usernames or
+# teams. CODEOWNERS only has teeth once branch protection requires review from the matching
+# owner on affected files — see conventions/branch-protection.md in this repo for that setup.
+#
+# GitHub evaluates rules top-to-bottom and the LAST matching rule wins, so put your most general
+# rule first and more specific overrides below it — the opposite order of a firewall/gitignore.
+
+# Default: every file needs review from the core maintainer group.
+*                               @your-org/maintainers
+
+# The workflow's own gates and CI wiring get pinned reviewers — the exact set of files this
+# design's Gate-1 approval named as needing extra scrutiny, since they're what makes the other
+# two gates trustworthy: nobody can quietly loosen the ship-gate hook or the CI checks that
+# enforce it in the same PR that also ships product code.
+/.github/                      @your-org/maintainers
+/hooks/ship-gate.sh            @your-org/maintainers
+
+# Design artifacts are a governance surface in their own right (they're what Gate 1 approves) —
+# route them to whoever owns the design-review process, which may be a narrower group than
+# "everyone who can review code".
+/design-artifacts/             @your-org/design-reviewers
