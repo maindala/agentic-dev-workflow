@@ -1,6 +1,6 @@
 # OAE-TC31 scratch example — user stories (throwaway)
 
-### TC31-1 — placeholder story
+### OTC-1 — placeholder story
 **As a** tester, **I want** a story ID to exist, **so that** the gate-check
 Action's cross-reference check has something to find.
 
