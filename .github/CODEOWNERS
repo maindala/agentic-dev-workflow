@@ -1,0 +1,10 @@
+# Requires review before a change to CI or the reusable action itself can be merged.
+#
+# Unlike the sibling repos, this one publishes no package — the supply-chain
+# artifact here is `.github/actions/gate-check`, a reusable composite action that
+# other projects consume by reference. Its `check.sh` therefore executes inside
+# *someone else's* CI run, so an unreviewed edit to it is a supply-chain change,
+# not just a local one. `gate-check.yml` and `ci.yml` gate this repo's own PRs and
+# are worth the same protection for the same reason: a workflow that can silently
+# weaken its own gate defeats the point of having one.
+/.github/ @maindala-it
