@@ -148,3 +148,5 @@ jobs:
             echo "::error::expected permissionDecision=ask for an invalid regex pattern, got: $out"
             exit 1
           fi
+
+# codeowners probe
