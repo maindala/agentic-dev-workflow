@@ -26,10 +26,17 @@ A Claude Code `PreToolUse` hook. Install by adding it to your project's `.claude
 }
 ```
 
-Requires `jq`. By default it matches `gh pr merge` and any command containing `scripts/deploy/` —
-set the `AGENTIC_WORKFLOW_GATE_PATTERNS` environment variable to override with your own project's
-actual ship commands (extended-regex alternation). See the comment header in the script itself for
-the exact matching rules and why substring matching is deliberate.
+Requires `jq`. By default it matches `gh pr merge`, any command containing `scripts/deploy/`,
+`gh release create`, and `git push --tags` — set the `AGENTIC_WORKFLOW_GATE_PATTERNS` environment
+variable to override with your own project's actual ship commands (extended-regex alternation).
+See the comment header in the script itself for the exact matching rules and why substring
+matching is deliberate.
+
+The two release patterns matter more than they might look. Under trusted publishing (npm/PyPI
+OIDC), **publishing a GitHub Release is the publish trigger** — not the merge that preceded it.
+Cutting a tag is a command that starts out safe to run autonomously and silently becomes
+equivalent to a deploy the moment a release workflow is wired up, so it belongs behind the same
+gate as a merge.
 
 The hook **fails closed**: if `jq` isn't installed, if it can't parse its input, or if your
 `AGENTIC_WORKFLOW_GATE_PATTERNS` doesn't compile as a regex, it asks for confirmation rather than
